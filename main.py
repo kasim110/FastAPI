@@ -1,21 +1,22 @@
 from fastapi import Depends, FastAPI, HTTPException
 from mysqlx import DatabaseError
-from pydantic import BaseModel
 from typing import List
 from passlib.context import CryptContext
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import User, TodoItem, Base
+from models import User, TodoItem, Base,UserCreate,TodoItemCreate,TodoItemUpdate,TodoItemResponse
 from db import db
 import jwt
 from datetime import datetime, timedelta
+from auth import verify_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Database Setup
 db_connection_string = db()
 engine = create_engine(db_connection_string)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
+security = HTTPBearer()
 # Password Hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -39,34 +40,10 @@ def get_db():
     finally:
         db.close()
 
-# Models
-class UserCreate(BaseModel):
-    username: str
-    password: str
-
-class UserCredentials(BaseModel):
-    username: str
-    password: str
-
-class TodoItemCreate(BaseModel):
-    title: str
-    description: str
-    user_id: int
-
-class TodoItemUpdate(BaseModel):
-    title: str
-    description: str
-
-class TodoItemResponse(BaseModel):
-    id: int
-    title: str
-    description: str
-    user_id : int
 
 
 
-
-# CRUD Operations
+# Create User
 @app.post("/users", status_code=201)
 def create_user(user: UserCreate):
     db = SessionLocal()
@@ -94,12 +71,8 @@ def get_user(user_id: int, db=Depends(get_db)):
 
 
 
-
-
-
-
 @app.post("/login")
-def login_user(user_credentials: UserCredentials, db=Depends(get_db)):
+def login_user(user_credentials: UserCreate, db=Depends(get_db)):
     try:
         user = db.query(User).filter(User.username == user_credentials.username).first()
         if not user:
@@ -120,9 +93,14 @@ def login_user(user_credentials: UserCredentials, db=Depends(get_db)):
     except DatabaseError as e:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Create Todo Item
+
+
+
+# CRUD Operations
 @app.post("/todos", status_code=201)
-def create_todo_item(todo_item: TodoItemCreate, db=Depends(get_db)):
+def create_todo_item(todo_item: TodoItemCreate, db=Depends(get_db),credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
     try:
         new_todo_item = TodoItem(
             title=todo_item.title,
@@ -142,7 +120,9 @@ def create_todo_item(todo_item: TodoItemCreate, db=Depends(get_db)):
 
 # Get Todo Item by ID
 @app.get("/todos/{todo_id}")
-def get_todo_item(todo_id: int, db=Depends(get_db)):
+def get_todo_item(todo_id: int, db=Depends(get_db),credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
     try:
         todo_item = db.query(TodoItem).filter(TodoItem.id == todo_id).first()
         if todo_item is None:
@@ -154,7 +134,9 @@ def get_todo_item(todo_id: int, db=Depends(get_db)):
 
 # Get All Todo Items
 @app.get("/todos", response_model=List[TodoItemResponse])  # Use List[TodoItem] as response_model
-def get_all_todo_items(db=Depends(get_db)):
+def get_all_todo_items(db=Depends(get_db),credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
     try:
 
         todo_items = db.query(TodoItem).all()
@@ -164,9 +146,11 @@ def get_all_todo_items(db=Depends(get_db)):
 
 
 
-# Update Todo Item
+# Update
 @app.put("/todos/update/{todo_id}")
-def update_todo_item(todo_id: int, todo_item_update: TodoItemUpdate, db=Depends(get_db)):
+def update_todo_item(todo_id: int, todo_item_update: TodoItemUpdate, db=Depends(get_db),credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
     try:
         todo_item = db.query(TodoItem).filter(TodoItem.id == todo_id).first()
         if todo_item is None:
@@ -180,9 +164,11 @@ def update_todo_item(todo_id: int, todo_item_update: TodoItemUpdate, db=Depends(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-# Delete Todo Item
+# Delete
 @app.delete("/todos/delete/{todo_id}")
-def delete_todo_item(todo_id: int, db=Depends(get_db)):
+def delete_todo_item(todo_id: int, db=Depends(get_db),credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
     try:
         todo_item = db.query(TodoItem).filter(TodoItem.id == todo_id).first()
         if todo_item is None:

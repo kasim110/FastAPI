@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from pydantic import BaseModel
 
 Base = declarative_base()
 
@@ -19,3 +20,25 @@ class TodoItem(Base):
     description = Column(String(255))
     created_at = Column(DateTime, default=datetime.now)
     user_id = Column(Integer)
+
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+
+class TodoItemCreate(BaseModel):
+    title: str
+    description: str
+    user_id: int
+
+class TodoItemUpdate(BaseModel):
+    title: str
+    description: str
+
+class TodoItemResponse(BaseModel):
+    id: int
+    title: str
+    description: str
+    user_id : int
