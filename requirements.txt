@@ -1,0 +1,6 @@
+# Install the required packages
+fastapi==0.97.0
+uvicorn==0.22.0
+SQLAlchemy==2.0.16
+mysql-connector-python==8.0.33
+PyJWT==2.7.0
